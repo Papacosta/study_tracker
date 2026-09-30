@@ -21,6 +21,10 @@ function mostrarMensagem(elemento, texto, tipo) {
   elemento.className = 'mensagem' + (tipo ? ' ' + tipo : '');
 }
 
+function limparMensagem(elemento) {
+  mostrarMensagem(elemento, '');
+}
+
 function formatarData(valor) {
   return new Date(valor).toLocaleString('pt-PT');
 }
@@ -144,7 +148,7 @@ function desenharResumo(resumo) {
 
   const unidade = document.createElement('small');
   unidade.textContent = resumo.total_minutos === 1 ? '1 minuto' : 'em total';
-  totalGeral.appendChild(' ');
+  totalGeral.appendChild(document.createTextNode(' '));
   totalGeral.appendChild(unidade);
 
   totalPorMateria.replaceChildren();
@@ -180,20 +184,20 @@ function desenharResumo(resumo) {
   }
 }
 
-async function carregarMaterias() {
+async function carregarMaterias(alvo = mensagem) {
   botaoAtualizar.disabled = true;
   try {
     const materias = await api('/api/materias');
     desenharMaterias(materias);
     desenharSeletorMaterias(materias);
   } catch (erro) {
-    mostrarMensagem(mensagem, erro.message, 'erro');
+    mostrarMensagem(alvo, erro.message, 'erro');
   } finally {
     botaoAtualizar.disabled = false;
   }
 }
 
-async function carregarSessoes() {
+async function carregarSessoes(alvo = mensagemSessao) {
   botaoAtualizarSessoes.disabled = true;
   try {
     const [sessoes, resumo] = await Promise.all([
@@ -203,7 +207,7 @@ async function carregarSessoes() {
     desenharSessoes(sessoes);
     desenharResumo(resumo);
   } catch (erro) {
-    mostrarMensagem(mensagemSessao, erro.message, 'erro');
+    mostrarMensagem(alvo, erro.message, 'erro');
   } finally {
     botaoAtualizarSessoes.disabled = false;
   }
@@ -211,7 +215,8 @@ async function carregarSessoes() {
 
 formMateria.addEventListener('submit', async (evento) => {
   evento.preventDefault();
-  mostrarMensagem(mensagem, '');
+  limparMensagem(mensagem);
+  limparMensagem(mensagemSessao);
 
   const dados = {
     nome: formMateria.nome.value.trim(),
@@ -229,18 +234,21 @@ formMateria.addEventListener('submit', async (evento) => {
     formMateria.reset();
     formMateria.nome.focus();
     mostrarMensagem(mensagem, 'Matéria "' + criada.nome + '" adicionada.', 'sucesso');
-    await carregarMaterias();
-    await carregarSessoes();
   } catch (erro) {
     mostrarMensagem(mensagem, erro.message, 'erro');
+    return;
   } finally {
     botaoSubmeter.disabled = false;
   }
+
+  await carregarMaterias(mensagemSessao);
+  await carregarSessoes();
 });
 
 formSessao.addEventListener('submit', async (evento) => {
   evento.preventDefault();
-  mostrarMensagem(mensagemSessao, '');
+  limparMensagem(mensagemSessao);
+  limparMensagem(mensagem);
 
   const dados = {
     materia_id: Number(seletorMateria.value),
@@ -262,16 +270,18 @@ formSessao.addEventListener('submit', async (evento) => {
       'Sessão de ' + formatarDuracao(dados.duracao_minutos) + ' registada.',
       'sucesso'
     );
-    await carregarSessoes();
   } catch (erro) {
     mostrarMensagem(mensagemSessao, erro.message, 'erro');
+    return;
   } finally {
     botaoSessao.disabled = false;
   }
+
+  await carregarSessoes(mensagem);
 });
 
-botaoAtualizar.addEventListener('click', carregarMaterias);
-botaoAtualizarSessoes.addEventListener('click', carregarSessoes);
+botaoAtualizar.addEventListener('click', () => carregarMaterias());
+botaoAtualizarSessoes.addEventListener('click', () => carregarSessoes());
 
 carregarMaterias();
 carregarSessoes();
