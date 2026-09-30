@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Study Tracker - Matérias</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="container">
+    <h1>Study Tracker</h1>
+    <p class="subtitulo">Cadastre e acompanhe as suas matérias de estudo.</p>
+
+    <section class="card">
+      <h2>Nova matéria</h2>
+      <form id="form-materia">
+        <label for="nome">Nome</label>
+        <input type="text" id="nome" name="nome" maxlength="100" required placeholder="Ex.: Cálculo" />
+
+        <label for="descricao">Descrição</label>
+        <textarea id="descricao" name="descricao" rows="3" placeholder="Opcional"></textarea>
+
+        <button type="submit" id="btn-submeter">Adicionar matéria</button>
+      </form>
+      <p id="mensagem" class="mensagem" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="card total">
+      <h2>Tempo total estudado</h2>
+      <p id="total-geral" class="total-valor">—</p>
+      <ul id="total-por-materia" class="barra-lista"></ul>
+    </section>
+
+    <section class="card">
+      <h2>Nova sessão de estudo</h2>
+      <form id="form-sessao">
+        <label for="sessao-materia">Matéria</label>
+        <select id="sessao-materia" name="materia_id" required>
+          <option value="">A carregar matérias...</option>
+        </select>
+
+        <label for="duracao">Duração (minutos)</label>
+        <input type="number" id="duracao" name="duracao_minutos" min="1" step="1" required placeholder="Ex.: 45" />
+
+        <label for="anotacoes">Anotações</label>
+        <textarea id="anotacoes" name="anotacoes" rows="2" placeholder="Opcional"></textarea>
+
+        <button type="submit" id="btn-sessao">Registar sessão</button>
+      </form>
+      <p id="mensagem-sessao" class="mensagem" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="card">
+      <div class="card-topo">
+        <h2>Sessões registadas</h2>
+        <button type="button" id="btn-atualizar-sessoes" class="secundario">Atualizar</button>
+      </div>
+      <ul id="lista-sessoes" class="lista"></ul>
+      <p id="sessoes-vazio" class="vazio" hidden>Nenhuma sessão registada ainda.</p>
+    </section>
+
+    <section class="card">
+      <div class="card-topo">
+        <h2>Matérias cadastradas</h2>
+        <button type="button" id="btn-atualizar" class="secundario">Atualizar</button>
+      </div>
+      <ul id="lista-materias" class="lista"></ul>
+      <p id="vazio" class="vazio" hidden>Nenhuma matéria cadastrada ainda.</p>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
