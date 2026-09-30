@@ -10,6 +10,7 @@
   <main class="container">
     <h1>Study Tracker</h1>
     <p class="subtitulo">Cadastre e acompanhe as suas matérias de estudo.</p>
+    <p id="aviso-api" class="aviso" role="alert" hidden></p>
 
     <section class="card">
       <h2>Nova matéria</h2>
@@ -63,6 +64,14 @@
       <div class="card-topo">
         <h2>Matérias cadastradas</h2>
         <button type="button" id="btn-atualizar" class="secundario">Atualizar</button>
+      </div>
+      <div class="filtros">
+        <label for="filtro-status">Mostrar</label>
+        <select id="filtro-status">
+          <option value="ativas" selected>Matérias ativas</option>
+          <option value="arquivadas">Matérias arquivadas</option>
+          <option value="todas">Todas as matérias</option>
+        </select>
       </div>
       <ul id="lista-materias" class="lista"></ul>
       <p id="vazio" class="vazio" hidden>Nenhuma matéria cadastrada ainda.</p>

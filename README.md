@@ -8,6 +8,8 @@ Backend em Node.js + Express com PostgreSQL, frontend em HTML/CSS/JavaScript pur
 
 - Criar matérias (nome obrigatório, descrição opcional).
 - Registar sessões de estudo por matéria, com duração em minutos, data e anotações.
+- **Arquivar matérias** ao fim do semestre (sem apagar o histórico de sessões) e **reativá-las** quando necessário.
+- Filtrar a lista de matérias por **ativas**, **arquivadas** ou **todas**.
 - Resumo com o **total de minutos estudados** e barra de progresso por matéria.
 - Listagem de matérias e de sessões (sessões ordenadas da mais recente para a mais antiga).
 - Endpoint de health check (`/health`) que confirma a ligação à base de dados.
@@ -48,6 +50,12 @@ psql -d study_tracker -f sql/schema.sql
 ```
 
 > Se preferires, cria a base de dados pela interface gráfica (pgAdmin, DBeaver, etc.) e executa o conteúdo de `sql/schema.sql` no editor de SQL.
+
+**Atualizar uma instalação existente:** o `schema.sql` usa `CREATE TABLE IF NOT EXISTS`, por isso não altera bases de dados já criadas. Depois de fazer `git pull`, aplica a migração:
+
+```bash
+psql -d study_tracker -f sql/migracao-ativa.sql
+```
 
 ### 4. Configurar as variáveis de ambiente
 
@@ -94,7 +102,8 @@ study_tracker/
 │   ├── styles.css     # Estilos
 │   └── app.js         # Lógica da interface e chamadas à API
 ├── sql/
-│   └── schema.sql     # Definição das tabelas
+│   ├── schema.sql           # Definição das tabelas (instalação nova)
+│   └── migracao-ativa.sql   # Adiciona a coluna ativa a instalações antigas
 ├── src/
 │   ├── server.js      # Aplicação Express e rotas da API
 │   └── db.js          # Pool de ligações ao PostgreSQL
@@ -110,11 +119,21 @@ Base: `http://localhost:3000`
 | Método | Rota                | Descrição                                              | Corpo (JSON)                                                     |
 | ------ | ------------------- | ------------------------------------------------------ | ---------------------------------------------------------------- |
 | GET    | `/health`           | Estado do servidor e da ligação à base de dados        | —                                                                  |
-| GET    | `/api/materias`     | Lista de matérias por ordem de criação                 | —                                                                  |
+| GET    | `/api/materias`     | Lista matérias. `?status=ativas\|arquivadas\|todas` (padrão: `ativas`) | —                                              |
 | POST   | `/api/materias`     | Cria uma matéria                                       | `{ "nome": "Cálculo", "descricao": "Derivadas" }`                 |
-| GET    | `/api/sessoes`      | Lista de sessões com o nome da matéria                 | —                                                                  |
+| PATCH  | `/api/materias/:id` | Arquiva (`ativa: false`) ou reativa (`ativa: true`) uma matéria | `{ "ativa": false }`                                        |
+| POST   | `/api/materias/:id/estado` | Alias do PATCH para hosts/proxies que bloqueiam esse método | `{ "ativa": false }`                                   |
+| GET    | `/api/sessoes`      | Lista de sessões com o nome da matéria (inclui as de matérias arquivadas) | —                                 |
 | POST   | `/api/sessoes`      | Regista uma sessão de estudo                            | `{ "materia_id": 1, "duracao_minutos": 45, "anotacoes": "..." }`  |
 | GET    | `/api/sessoes/resumo` | Total de minutos no geral e por matéria               | —                                                                  |
+
+### Semestres e arquivamento
+
+Cada matéria tem a coluna `ativa` (`BOOLEAN DEFAULT true`). Arquivar uma matéria ao fim do semestre
+define `ativa = false`: deixa de aparecer na lista de matérias ativas e no seletor de novas sessões,
+mas **não apaga nada** — as sessões de estudo e os totais no resumo continuam a contar.
+
+O botão **Reativar** volta a matéria ao semestre corrente.
 
 ### Exemplos
 
@@ -127,15 +146,31 @@ curl -X POST http://localhost:3000/api/sessoes \
   -H 'Content-Type: application/json' \
   -d '{"materia_id":1,"duracao_minutos":90,"anotacoes":"Exercícios 1 a 5"}'
 
+# Arquivar a matéria 1 no fim do semestre
+curl -X PATCH http://localhost:3000/api/materias/1 \
+  -H 'Content-Type: application/json' \
+  -d '{"ativa":false}'
+
+# Reativar no semestre seguinte
+curl -X PATCH http://localhost:3000/api/materias/1 \
+  -H 'Content-Type: application/json' \
+  -d '{"ativa":true}'
+
+curl 'http://localhost:3000/api/materias?status=arquivadas'
 curl http://localhost:3000/api/sessoes/resumo
 ```
+
+> Depois de alterar o código do servidor é preciso reiniciar o processo (`npm start`), caso contrário
+> corre a versão antiga em memória e as rotas novas respondem com `Cannot PATCH /api/materias/1`.
+> Para tornar isso visível, o `/health` devolve a versão da API (`api`) e a interface mostra um aviso
+> laranja no topo quando deteta que o servidor em execução é anterior à do ficheiro `public/app.js`.
 
 ### Erros
 
 As respostas de erro seguem sempre o formato `{ "erro": "mensagem" }`:
 
-- `400` — campos em falta ou inválidos (por exemplo, `nome` vazio ou `duracao_minutos` menor que 1)
-- `404` — a matéria indicada em `materia_id` não existe
+- `400` — campos em falta ou inválidos (por exemplo, `nome` vazio, `duracao_minutos` menor que 1, `status` desconhecido)
+- `404` — a matéria indicada em `materia_id` ou em `/api/materias/:id` não existe
 - `500` — erro interno (detalhes no terminal)
 
 ## Base de dados
@@ -145,6 +180,7 @@ CREATE TABLE materias (
   id            SERIAL PRIMARY KEY,
   nome          VARCHAR(100) NOT NULL,
   descricao     TEXT,
+  ativa         BOOLEAN NOT NULL DEFAULT TRUE,
   data_criacao  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -156,9 +192,12 @@ CREATE TABLE sessoes_estudo (
   anotacoes         TEXT
 );
 
+CREATE INDEX idx_materias_ativa ON materias (ativa);
 CREATE INDEX idx_sessoes_materia ON sessoes_estudo (materia_id);
 CREATE INDEX idx_sessoes_data ON sessoes_estudo (data_estudo DESC);
 ```
+
+`ON DELETE CASCADE` só entra em jogo se a matéria for **apagada**; o arquivamento (`ativa = false`) não afeta as sessões.
 
 ## Scripts
 

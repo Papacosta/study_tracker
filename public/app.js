@@ -1,9 +1,11 @@
 const formMateria = document.getElementById('form-materia');
+const avisoApi = document.getElementById('aviso-api');
 const listaMaterias = document.getElementById('lista-materias');
 const materiasVazio = document.getElementById('vazio');
 const mensagem = document.getElementById('mensagem');
 const botaoSubmeter = document.getElementById('btn-submeter');
 const botaoAtualizar = document.getElementById('btn-atualizar');
+const filtroStatus = document.getElementById('filtro-status');
 
 const formSessao = document.getElementById('form-sessao');
 const seletorMateria = document.getElementById('sessao-materia');
@@ -16,6 +18,21 @@ const botaoAtualizarSessoes = document.getElementById('btn-atualizar-sessoes');
 const totalGeral = document.getElementById('total-geral');
 const totalPorMateria = document.getElementById('total-por-materia');
 
+let filtroMaterias = filtroStatus.value;
+
+// Deve coincidir com VERSAO_API em src/server.js.
+const VERSAO_API_ESPERADA = 2;
+
+const AVISO_API_DESATUALIZADA =
+  'A API que está a responder está desatualizada, por isso os filtros e o arquivamento ' +
+  'não funcionam. Reinicia o servidor com Ctrl+C e <code>npm start</code>.';
+
+const MENSAGENS_VAZIO = {
+  ativas: 'Nenhuma matéria ativa neste momento.',
+  arquivadas: 'Nenhuma matéria arquivada.',
+  todas: 'Nenhuma matéria cadastrada ainda.',
+};
+
 function mostrarMensagem(elemento, texto, tipo) {
   elemento.textContent = texto;
   elemento.className = 'mensagem' + (tipo ? ' ' + tipo : '');
@@ -23,6 +40,41 @@ function mostrarMensagem(elemento, texto, tipo) {
 
 function limparMensagem(elemento) {
   mostrarMensagem(elemento, '');
+}
+
+function mostrarAvisoApi(texto) {
+  avisoApi.replaceChildren();
+
+  const partes = texto.split('<code>');
+  avisoApi.appendChild(document.createTextNode(partes[0]));
+
+  if (partes.length > 1) {
+    const [codigo, resto] = partes[1].split('</code>');
+    const elemento = document.createElement('code');
+    elemento.textContent = codigo;
+    avisoApi.appendChild(elemento);
+    avisoApi.appendChild(document.createTextNode(resto));
+  }
+
+  avisoApi.hidden = false;
+}
+
+function esconderAvisoApi() {
+  avisoApi.hidden = true;
+  avisoApi.textContent = '';
+}
+
+async function verificarVersaoApi() {
+  try {
+    const saude = await api('/health');
+    if (typeof saude.api !== 'number' || saude.api < VERSAO_API_ESPERADA) {
+      mostrarAvisoApi(AVISO_API_DESATUALIZADA);
+    } else {
+      esconderAvisoApi();
+    }
+  } catch (erro) {
+    mostrarAvisoApi('Não foi possível contactar o servidor: ' + erro.message);
+  }
 }
 
 function formatarData(valor) {
@@ -41,7 +93,10 @@ async function api(caminho, opcoes) {
   const resposta = await fetch(caminho, opcoes);
   const corpo = await resposta.json().catch(() => ({}));
   if (!resposta.ok) {
-    throw new Error(corpo.erro || 'Erro ' + resposta.status);
+    const erro = new Error(corpo.erro || 'Erro ' + resposta.status);
+    erro.status = resposta.status;
+    erro.estruturado = Boolean(corpo.erro);
+    throw erro;
   }
   return corpo;
 }
@@ -51,11 +106,36 @@ function desenharMaterias(materias) {
 
   for (const materia of materias) {
     const item = document.createElement('li');
+    if (!materia.ativa) {
+      item.className = 'arquivada';
+    }
+
+    const topo = document.createElement('div');
+    topo.className = 'materia-topo';
 
     const nome = document.createElement('div');
     nome.className = 'nome';
-    nome.textContent = materia.nome;
-    item.appendChild(nome);
+    nome.appendChild(document.createTextNode(materia.nome));
+
+    const etiqueta = document.createElement('span');
+    etiqueta.className = 'etiqueta' + (materia.ativa ? ' ativa' : '');
+    etiqueta.textContent = materia.ativa ? 'Ativa' : 'Arquivada';
+    nome.appendChild(etiqueta);
+
+    const accoes = document.createElement('div');
+    accoes.className = 'materia-acoes';
+
+    const botao = document.createElement('button');
+    botao.type = 'button';
+    botao.className = 'secundario';
+    botao.dataset.id = String(materia.id);
+    botao.dataset.ativa = String(materia.ativa);
+    botao.textContent = materia.ativa ? 'Arquivar' : 'Reativar';
+    accoes.appendChild(botao);
+
+    topo.appendChild(nome);
+    topo.appendChild(accoes);
+    item.appendChild(topo);
 
     if (materia.descricao) {
       const descricao = document.createElement('div');
@@ -72,6 +152,7 @@ function desenharMaterias(materias) {
     listaMaterias.appendChild(item);
   }
 
+  materiasVazio.textContent = MENSAGENS_VAZIO[filtroMaterias] ?? MENSAGENS_VAZIO.todas;
   materiasVazio.hidden = materias.length > 0;
 }
 
@@ -111,7 +192,7 @@ function desenharSessoes(sessoes) {
 
     const nome = document.createElement('span');
     nome.className = 'nome';
-    nome.textContent = sessao.materia;
+    nome.textContent = sessao.nome;
     topo.appendChild(nome);
 
     const duracao = document.createElement('span');
@@ -163,7 +244,15 @@ function desenharResumo(resumo) {
     topo.className = 'barra-topo';
 
     const nome = document.createElement('span');
-    nome.textContent = materia.nome;
+    nome.appendChild(document.createTextNode(materia.nome));
+
+    if (materia.ativa === false) {
+      const etiqueta = document.createElement('span');
+      etiqueta.className = 'etiqueta';
+      etiqueta.textContent = 'arquivada';
+      nome.appendChild(etiqueta);
+    }
+
     topo.appendChild(nome);
 
     const valor = document.createElement('span');
@@ -187,14 +276,61 @@ function desenharResumo(resumo) {
 async function carregarMaterias(alvo = mensagem) {
   botaoAtualizar.disabled = true;
   try {
-    const materias = await api('/api/materias');
+    const [materias, ativas] = await Promise.all([
+      api('/api/materias?status=' + encodeURIComponent(filtroMaterias)),
+      api('/api/materias?status=ativas'),
+    ]);
     desenharMaterias(materias);
-    desenharSeletorMaterias(materias);
+    desenharSeletorMaterias(ativas);
+
+    // Resposta sem a coluna "ativa" significa que a API em execução é antiga.
+    if (materias.some((m) => !('ativa' in m)) || ativas.some((m) => !('ativa' in m))) {
+      mostrarAvisoApi(AVISO_API_DESATUALIZADA);
+    }
   } catch (erro) {
     mostrarMensagem(alvo, erro.message, 'erro');
   } finally {
     botaoAtualizar.disabled = false;
   }
+}
+
+async function definirEstadoMateria(id, ativa) {
+  const opcoes = {
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ativa }),
+  };
+
+  try {
+    return await api('/api/materias/' + id, { ...opcoes, method: 'PATCH' });
+  } catch (erro) {
+    // 404/405 sem corpo JSON significa que a rota PATCH não existe neste
+    // servidor (processo antigo) ou o método é bloqueado pelo proxy.
+    const rotaDesconhecida = erro.status === 405 || (erro.status === 404 && !erro.estruturado);
+    if (!rotaDesconhecida) {
+      throw erro;
+    }
+    return api('/api/materias/' + id + '/estado', { ...opcoes, method: 'POST' });
+  }
+}
+
+async function alternarEstadoMateria(id, ativa) {
+  try {
+    const materia = await definirEstadoMateria(id, ativa);
+
+    mostrarMensagem(
+      mensagem,
+      ativa
+        ? 'Matéria "' + materia.nome + '" reativada.'
+        : 'Matéria "' + materia.nome + '" arquivada. O histórico de sessões foi mantido.',
+      'sucesso'
+    );
+  } catch (erro) {
+    mostrarMensagem(mensagem, erro.message, 'erro');
+    return;
+  }
+
+  await carregarMaterias(mensagemSessao);
+  await carregarSessoes();
 }
 
 async function carregarSessoes(alvo = mensagemSessao) {
@@ -280,8 +416,24 @@ formSessao.addEventListener('submit', async (evento) => {
   await carregarSessoes(mensagem);
 });
 
+listaMaterias.addEventListener('click', async (evento) => {
+  const botao = evento.target.closest('button[data-id]');
+  if (!botao) {
+    return;
+  }
+
+  botao.disabled = true;
+  await alternarEstadoMateria(botao.dataset.id, botao.dataset.ativa !== 'true');
+});
+
+filtroStatus.addEventListener('change', () => {
+  filtroMaterias = filtroStatus.value;
+  carregarMaterias();
+});
+
 botaoAtualizar.addEventListener('click', () => carregarMaterias());
 botaoAtualizarSessoes.addEventListener('click', () => carregarSessoes());
 
+verificarVersaoApi();
 carregarMaterias();
 carregarSessoes();

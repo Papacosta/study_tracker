@@ -38,6 +38,22 @@ h1 {
   color: var(--suave);
 }
 
+.aviso {
+  margin: 0 0 1.5rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: #7a2e0e;
+  background: #fdf3e7;
+  border: 1px solid #f3c79a;
+  border-radius: 8px;
+}
+
+.aviso code {
+  padding: 0.05rem 0.3rem;
+  background: #f6e0c6;
+  border-radius: 4px;
+}
+
 .card {
   background: var(--card);
   border: 1px solid var(--borda);
@@ -201,7 +217,7 @@ button.secundario:hover:not(:disabled) {
   margin-bottom: 0.3rem;
 }
 
-.barra-topo span:last-child {
+.barra-topo > span:last-child {
   color: var(--suave);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -225,4 +241,66 @@ button.secundario:hover:not(:disabled) {
   font-weight: 600;
   color: var(--primaria);
   font-variant-numeric: tabular-nums;
+}
+
+.filtros {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.filtros label {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.filtros select {
+  margin-bottom: 0;
+}
+
+.materia-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.materia-topo .nome {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.materia-acoes {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.etiqueta {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--suave);
+  background: #e8eaee;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.etiqueta.ativa {
+  color: var(--sucesso);
+  background: #e7f5ee;
+}
+
+.lista li.arquivada {
+  opacity: 0.75;
+}
+
+.lista li.arquivada .nome {
+  color: var(--suave);
 }

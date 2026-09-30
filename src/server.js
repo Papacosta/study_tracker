@@ -133,7 +133,7 @@ app.post('/api/sessoes', async (req, res, next) => {
 app.get('/api/sessoes', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT s.id, s.materia_id, m.nome AS materia, s.duracao_minutos,
+      `SELECT s.id, s.materia_id, m.nome, s.duracao_minutos,
               s.data_estudo, s.anotacoes
          FROM sessoes_estudo s
          JOIN materias m ON m.id = s.materia_id
@@ -148,7 +148,7 @@ app.get('/api/sessoes', async (req, res, next) => {
 app.get('/api/sessoes/resumo', async (req, res, next) => {
   try {
     const { rows: porMateria } = await pool.query(
-      `SELECT m.id AS materia_id, m.nome AS materia, m.ativa,
+      `SELECT m.id AS materia_id, m.nome, m.ativa,
               COUNT(s.id)::int AS total_sessoes,
               COALESCE(SUM(s.duracao_minutos), 0)::int AS total_minutos
          FROM materias m
